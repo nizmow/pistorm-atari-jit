@@ -254,11 +254,12 @@ bool emulator_config_native_hdmi_enabled(void)
 
 bool emulator_config_display_enabled(void)
 {
-  /* The render thread always runs: it owns the HDMI output. It drives the
-   * emulated VGA card and/or the native_hdmi ST-screen mirror when they are
-   * enabled, and presents the Fuji splash whenever nothing is being rendered
-   * (e.g. native_hdmi disabled for shifter-output gaming). */
-  return current_config != NULL;
+  /* Do not initialize SDL/DRM or allocate the native staging framebuffer for
+   * a bare bus/CPU configuration. */
+  return current_config &&
+         (emulator_config_et4k_enabled() ||
+          emulator_config_fvdi_enabled() ||
+          emulator_config_native_hdmi_enabled());
 }
 
 bool emulator_config_et4k_enabled(void)

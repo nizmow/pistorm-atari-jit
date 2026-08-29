@@ -1103,19 +1103,36 @@ void *cpu_task(void *)
   cpu_set_t cpuset;
   pthread_t thread;
   struct sched_param param;
+  int rc;
 
   /* anchor this task to cpu2 */
   CPU_ZERO(&cpuset);
   CPU_SET(2, &cpuset);
   thread = pthread_self();
-  pthread_setaffinity_np(thread, sizeof(cpuset), &cpuset);
+  rc = pthread_setaffinity_np(thread, sizeof(cpuset), &cpuset);
+  if (rc != 0)
+  {
+    fprintf(stderr, "[CPU] cannot set affinity: %s\n", strerror(rc));
+    return NULL;
+  }
 
   /* set real-time priority for this task */
   param.sched_priority = 99; // Highest possible priority
-  sched_setscheduler(0, SCHED_FIFO, &param);
+  if (sched_setscheduler(0, SCHED_FIFO, &param) != 0)
+  {
+    fprintf(stderr, "[CPU] cannot set SCHED_FIFO: %s\n", strerror(errno));
+    return NULL;
+  }
 
-  // Lock memory to prevent swapping to SD card (causes random hangs)
-  mlockall(MCL_CURRENT | MCL_FUTURE);
+  /* Keep every page resident after its first use so a swap-in cannot stall
+   * the CPU while it owns the Atari bus. MCL_ONFAULT is essential: without
+   * it MCL_CURRENT populates and pins the entire sparse 144MB natmem reserve,
+   * unused .bss, and every file-backed mapping before the guest starts. */
+  if (mlockall(MCL_CURRENT | MCL_FUTURE | MCL_ONFAULT) != 0)
+  {
+    fprintf(stderr, "[CPU] cannot lock runtime memory: %s\n", strerror(errno));
+    return NULL;
+  }
 
   while (!cpu_emulation_running);
 
