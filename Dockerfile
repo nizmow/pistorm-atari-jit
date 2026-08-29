@@ -22,7 +22,8 @@ FROM debian:trixie
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Build dependency list mirrors README.md "Preparation". cmake/git/ffmpeg and
-# the runtime tools are not needed to compile, so they are left out.
+# unrelated runtime tools are not needed, so they are left out. The disk-image
+# tools are used by `make release` to package the initial EmuTOS C: drive.
 # Nothing here depends on the source tree, so this image is cached and only
 # rebuilt when the Dockerfile or this list changes.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -30,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libsdl3-dev libmpg123-dev libjpeg-dev libdrm-dev libslirp-dev \
         zlib1g-dev \
         libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
-        libswresample-dev \
+        libswresample-dev python3 dosfstools mtools gzip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src

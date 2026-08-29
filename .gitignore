@@ -30,3 +30,5 @@ pistorm-rpi-ffmpeg-*.tar.gz.sha256
 /.ffmpeg-choice
 drmprobe
 /cdev/
+# Binaries assembled by `make release`.
+/output/

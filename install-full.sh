@@ -13,6 +13,12 @@
 #
 # cryptodad / hardened rewrite — 2026
 #
+# Raspberry Pi OS maps /bin/sh to dash. If a user invokes this as
+# `sh install-full.sh`, hand off before dash reaches any Bash-only syntax.
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 # --------------------------------------------------------------------------
@@ -128,6 +134,7 @@ PiSTorm Atari installer (idempotent).
 
 Non-interactive env overrides:
   BUILD=1  SERVICE=1  SAMBA=1  PISTORM_CFG=games.cfg  ./install-full.sh
+  PISTORM_DISK_MB=128 ./install-full.sh   # source fallback disk size (default 64)
 EOF
     exit 0 ;;
   "") ;;
@@ -218,12 +225,18 @@ sudo apt-get update
 # large to want a second copy of on the SD card. Installed unconditionally
 # because it is tiny, and discovering it is missing usually happens when the Pi
 # is already sitting headless next to the Atari.
+# Binary releases contain dk0.img.gz, so they only need gzip. A source install
+# with no existing image needs these additional tools for the local fallback.
+DISK_TOOLS=()
+if [ ! -e "$ROOT/dkimages/dk0.img" ] && [ ! -f "$HERE/dkimages/dk0.img.gz" ]; then
+  DISK_TOOLS=(python3 dosfstools mtools)
+fi
 sudo apt-get install -y \
   build-essential g++ make pkg-config cmake git \
   libmpg123-dev libjpeg-dev libdrm-dev libslirp-dev zlib1g-dev \
   libavformat-dev libavcodec-dev libavutil-dev \
   libswscale-dev libswresample-dev \
-  libasound2-dev ffmpeg cifs-utils
+  libasound2-dev ffmpeg cifs-utils gzip "${DISK_TOOLS[@]}"
 
 # ---- SDL3 -----------------------------------------------------------------
 # Debian ships libsdl3-dev from trixie (Raspberry Pi OS 13) onwards. On a
@@ -262,6 +275,31 @@ copy_once "$HERE/configs/atari.cfg"         "$ROOT/configs/atari.cfg"
 copy_once "$HERE/configs/master.cfg"        "$ROOT/configs/master.cfg"
 copy_once "$HERE/configs/emutos-aranym.rom" "$ROOT/roms/emutos-aranym.rom"
 copy_once "$HERE/configs/720k.st"           "$ROOT/dkimages/fdd/720k.st"
+
+# EmuTOS boots from the ROM above and has its own IDE driver. A binary release
+# ships its writable C: drive compressed; extract it atomically. Source installs
+# generate the same image locally as a fallback. Never replace an existing
+# image: it may contain the user's installed system/data.
+DISK_IMAGE="$ROOT/dkimages/dk0.img"
+PACKAGED_DISK="$HERE/dkimages/dk0.img.gz"
+if [ ! -e "$DISK_IMAGE" ]; then
+  if [ -f "$PACKAGED_DISK" ]; then
+    say "Installing packaged EmuTOS IDE disk $DISK_IMAGE"
+    DISK_TMP="$ROOT/dkimages/.dk0.img.$$"
+    if ! gzip -dc "$PACKAGED_DISK" > "$DISK_TMP"; then
+      rm -f "$DISK_TMP"
+      die "Failed to extract $PACKAGED_DISK"
+    fi
+    mv "$DISK_TMP" "$DISK_IMAGE"
+  else
+    say "Creating free ${PISTORM_DISK_MB:-64} MB EmuTOS IDE disk $DISK_IMAGE"
+    "$HERE/tools/make-atari-disk.sh" \
+        "$DISK_IMAGE" "$HERE/configs/gem-binaries" \
+        "${PISTORM_DISK_MB:-64}"
+  fi
+else
+  say "Keeping existing IDE disk $DISK_IMAGE"
+fi
 
 # capture muxer: shipped in configs/, run from the emulator directory
 copy_once "$HERE/configs/capmux.sh"         "$HERE/capmux.sh"

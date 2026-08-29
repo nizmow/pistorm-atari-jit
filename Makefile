@@ -202,7 +202,7 @@ SLIRP_LIBS   = $(shell pkg-config --libs libslirp 2>/dev/null || pkg-config --li
 # `make ffmpeg` is how you SATISFY the FFmpeg dependency, so refusing to run it
 # because that dependency is missing would be a closed loop. ffmpeg-status has
 # to work on a broken system too - that is when you need it most.
-ifeq ($(filter clean ffmpeg ffmpeg-status docker,$(MAKECMDGOALS)),)
+ifeq ($(filter clean ffmpeg ffmpeg-status docker release,$(MAKECMDGOALS)),)
 
 ifeq ($(shell command -v pkg-config 2>/dev/null),)
 $(error pkg-config not found. Install the build tools first: sudo apt install build-essential pkg-config)
@@ -449,6 +449,41 @@ docker: Dockerfile
 		$(DOCKER_TOOLCHAIN) \
 		make PIMODEL=$(PIMODEL)
 
-.PHONY: all clean ffmpeg-status docker
+# -----------------------------------------------------------------
+# Release: assemble ./output/ with everything the Pi needs.
+#   make release PIMODEL=PI3 DISK_MB=128
+# Builds (via docker), then copies the deployable bits - the prebuilt
+# emulator/ataritest/drmprobe, the CPLD bitstreams and pistormflash, the
+# SMI tools, configs/, a compressed initial IDE disk, the installer, scripts
+# and docs - into output/.
+# Source for rebuilding (cpu/, jit/, ...) is intentionally NOT shipped;
+# on the Pi run:  BUILD=0 ./install-full.sh   (it installs deps + files and
+# only prompts to build because BUILD defaults to 'y' - answer no / set 0).
+# `make ffmpeg` (hardware HEVC) is likewise a Pi-side step against a git
+# checkout, not part of a binary release (VIDEO.md).
+# -----------------------------------------------------------------
+RELEASE_DIR ?= output
+DISK_MB     ?= 64
+
+release: docker
+	rm -rf $(RELEASE_DIR) && mkdir -p $(RELEASE_DIR) $(RELEASE_DIR)/gpio/smi \
+		$(RELEASE_DIR)/atari-tools/setmch $(RELEASE_DIR)/dkimages
+	cp emulator ataritest drmprobe $(RELEASE_DIR)/
+	cp install-full.sh capmux.sh netstart.sh perf.sh screendump.sh $(RELEASE_DIR)/
+	cp -r rtl configs boot_scripts tools $(RELEASE_DIR)/
+	cp gpio/smi/smi_diag gpio/smi/smi_reset $(RELEASE_DIR)/gpio/smi/
+	cp -r atari-tools/setmch/. $(RELEASE_DIR)/atari-tools/setmch/
+	cp README.md INSTALL-README.md VIDEO.md NATFEATS.md KBD_USB_README.md LICENSE $(RELEASE_DIR)/
+	docker run --rm --platform linux/arm64 \
+		--user $$(id -u):$$(id -g) \
+		-v $(CURDIR):/src -w /src \
+		$(DOCKER_TOOLCHAIN) \
+		sh -c 'tools/make-atari-disk.sh "$$1" configs/gem-binaries "$$2" && gzip -9n "$$1"' \
+		sh "$(RELEASE_DIR)/dkimages/dk0.img" "$(DISK_MB)"
+	@echo "Built $(RELEASE_DIR)/"
+	@echo "  Initial IDE disk: $(DISK_MB) MB (dkimages/dk0.img.gz)"
+	@echo "  On the Pi: scp -r $(RELEASE_DIR) pi@...:~/ && cd $(RELEASE_DIR) && BUILD=0 ./install-full.sh"
+
+.PHONY: all clean ffmpeg-status docker release
 
 -include $(COBJS:%.o=%.d) $(CPPOBJS:%.o=%.d)

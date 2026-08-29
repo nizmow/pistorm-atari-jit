@@ -68,9 +68,14 @@ BUILD=1 SERVICE=1 SAMBA=0 PISTORM_CFG=games.cfg ./install-full.sh
 | `SAMBA=1`      | Install + configure the Samba share                 | prompt  |
 | `KILLGUI=1`    | Disable the desktop and switch to console boot      | prompt (declining **aborts**) |
 | `PISTORM_CFG=` | Config the auto-start service launches              | `master.cfg` |
+| `PISTORM_CFG=atari-pi3.cfg` | Use the 512 MB-Pi config (TT-RAM off) | |
+| `PISTORM_DISK_MB=` | Source install fallback `dk0.img` size (8-512 MB) | `64` |
 
-Any of these set to `1`/`y`/`yes` means yes; anything else means no. Unset means
-prompt on a TTY, or take the default when there is no TTY.
+For the yes/no options, `1`/`y`/`yes` means yes and anything else means no.
+Unset means prompt on a TTY, or take the default when there is no TTY.
+`PISTORM_DISK_MB` is numeric and is only used when neither `dk0.img` nor a
+packaged `dk0.img.gz` exists. For a binary release, choose the size at build
+time with `make release DISK_MB=128`.
 
 ### Other commands
 
@@ -90,6 +95,9 @@ runtime libs, so a prebuilt binary works too):
 
 ```
 build-essential  g++  make  pkg-config  cmake  git
+python3          create the DOS partition table for dk0.img (source fallback)
+dosfstools       create its Atari-compatible FAT16 filesystem (source fallback)
+mtools           seed it without root privileges or loop mounts (source fallback)
 libsdl3-dev      audio backend (see note below)
 libmpg123-dev    host MP3 decode — the MP3PLAY NatFeat
 libavformat-dev  libavcodec-dev  libavutil-dev
@@ -128,6 +136,7 @@ Created next to the repo (won't overwrite anything that already exists):
 ├── roms/            EmuTOS is installed here; add your own TOS ROM here too
 ├── configs/         atari.cfg, master.cfg (your own .cfg files go here)
 ├── dkimages/
+│   ├── dk0.img      packaged/generated FAT16 C: drive (existing image kept)
 │   └── fdd/         720k.st blank floppy; put disk/game images here
 ├── atari-share/     point a HOSTFS drive here. The GEM programs
 │                    (MP3GEM.PRG, VIDGEM.PRG, VIDPLAY.TTP) are installed
@@ -135,6 +144,13 @@ Created next to the repo (won't overwrite anything that already exists):
 │                    media share from another machine — see below
 └── screendumps/     screenshots
 ```
+
+EmuTOS itself boots from the bundled ROM; `dk0.img` is its writable IDE C:
+drive. Binary releases contain `dk0.img.gz`, generated in the Linux build
+container and seeded with the bundled free GEM programs. The installer checks
+and extracts it only when `dk0.img` is absent. A source checkout without the
+packaged image generates the same disk locally as a fallback. Neither path
+downloads third-party Atari software or overwrites an existing image.
 
 ### 3. Boot firmware — **merged, not overwritten**
 
@@ -377,6 +393,6 @@ place**. For a full wipe, remove the runtime tree yourself.
 If you package this for other people:
 
 - **Do** include EmuTOS (GPL).
-- **Do not** bundle Atari TOS ROMs or any games/disk images — they're
-  copyrighted. Ship the empty `roms/`/`dkimages/` folders and let users add
-  their own.
+- **Do not** bundle Atari TOS ROMs, games, or third-party disk images — they're
+  copyrighted. EmuTOS and the release-generated `dk0.img` are free;
+  users add their own software and media.

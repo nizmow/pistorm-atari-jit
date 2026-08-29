@@ -1,5 +1,6 @@
 .git
 build
+output
 ffmpeg
 **/*.o
 **/*.d
