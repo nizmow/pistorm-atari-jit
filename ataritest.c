@@ -7,6 +7,7 @@
  * ataritest --dumprom address=0xe00000 size=192 or size=256
  * ataritest --init 512 or 1024 or 2048 or 4096
  * ataritest --memory tests=rwx size=512 loop=yes
+ * ataritest --latch type=373 --peek address=0xe00000
  * 
  * 
  */
@@ -96,6 +97,7 @@ int rwtest = 0;
 int cmdRESET = 0;
 int cmdHALT = 0;
 int cmdArbTest = 0;
+int latchType = -1;
 int arbSeconds = 5;
 int arbHammer = 0;
 int arbSource = ARB_SOURCE_NONE;
@@ -230,6 +232,9 @@ int main ( int argc, char *argv[] )
     if ( parser ( argc, argv ) )
     {        
         ps_setup_protocol ();
+
+        if ( latchType != -1 )
+            ps_write_latchtype ( (uint16_t)latchType );
        
         if ( VERBOSE )
             ps_get_firmware_revision ();
@@ -469,6 +474,8 @@ test_loop:
                  "--init <size=xxx>\n"
                  "     configures ATARI MMU for the specified size.\n"
                  "     <size> 512 to 4096. If not supplied, 512 is used\n"
+                 "--latch type=[373 | 374]\n"
+                 "     selects the PiStorm latch type before other commands.\n"
                  "--arbtest <seconds=n> <hammer=yes> <address=xxxxxx> <source=blitter> <op=fill|copy> <blitms=n> <quietms=n>\n"
                  "     polls CPLD arbitration status bit and optionally hammers RAM or starts real blits\n"
         );
@@ -2052,6 +2059,30 @@ int parser ( int argc, char **argv )
         {
             cmdHALT = 1;
             valid = 1;
+        }
+
+        if ( strcmp ( cmdptr, "latch" ) == 0 )
+        {
+            valid = 1;
+            substring = strtok_r ( NULL, " ", &strSave );
+
+            for ( ; substring != NULL; substring = strtok_r ( NULL, " ", &strSave ) )
+            {
+                aptr = strtok ( substring, "=" );
+                tptr = strtok ( NULL, "" );
+
+                if ( strcmp ( aptr, "type" ) != 0 || tptr == NULL )
+                    valid = 0;
+                else if ( strcmp ( tptr, "373" ) == 0 )
+                    latchType = LATCH_LS373;
+                else if ( strcmp ( tptr, "374" ) == 0 )
+                    latchType = LATCH_LS374;
+                else
+                    valid = 0;
+            }
+
+            if ( latchType == -1 )
+                valid = 0;
         }
 
         if ( strcmp ( cmdptr, "arbtest" ) == 0 )

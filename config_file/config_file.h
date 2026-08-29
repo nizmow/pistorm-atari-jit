@@ -87,6 +87,7 @@ typedef struct VGA
 
 struct emulator_config {
   uint8_t cpu_type;
+  int latch_type;       /* -1 = unset, 0 = 373, 1 = 374 */
   bool jit;
   int loop_cycles;
   bool fpu;

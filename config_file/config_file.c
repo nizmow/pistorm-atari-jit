@@ -17,6 +17,7 @@ extern void set_hard_drive_image_file_atari ( uint8_t, char* );
 typedef enum {
   CONFITEM_NONE,
   CONFITEM_CPU,
+  CONFITEM_LATCH,
   CONFITEM_JIT,
   CONFITEM_FPU,
   CONFITEM_LOOPCYCLES,
@@ -77,6 +78,7 @@ const char *cpu_types[M68K_CPU_TYPES] = {
 
 static const config_switch_def config_switches[] = {
   { "cpu", CONFITEM_CPU },
+  { "latch", CONFITEM_LATCH },
   { "jit", CONFITEM_JIT },
   { "fpu", CONFITEM_FPU },
   { "loopcycles", CONFITEM_LOOPCYCLES },
@@ -558,6 +560,7 @@ struct emulator_config *load_config_file(char *filename) {
 
   memset(cfg, 0x00, sizeof(struct emulator_config));
   cfg->cpu_type = M68K_CPU_TYPE_68000 - 1;
+  cfg->latch_type = -1;
   cfg->jit = true;
   cfg->blitter = true;
   cfg->vga_render = true;
@@ -581,6 +584,21 @@ struct emulator_config *load_config_file(char *filename) {
     {
       case CONFITEM_CPU:
         cfg->cpu_type = get_m68k_cpu_type(parse_line + str_pos) - 1;
+        break;
+
+      case CONFITEM_LATCH:
+        {
+          int type = (int)get_int(parse_line + str_pos);
+          if (type == 373 || type == 374)
+          {
+            cfg->latch_type = type == 374 ? 1 : 0;
+            printf ("[CFG] PiStorm latch type %d\n", type);
+          }
+          else
+          {
+            printf ("[CFG] Invalid latch type %d; expected 373 or 374\n", type);
+          }
+        }
         break;
 
       case CONFITEM_JIT:

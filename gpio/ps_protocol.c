@@ -673,26 +673,30 @@ void ps_write_latchtype ( uint16_t latchtype )
 {
   uint16_t status;
 
-  status = ps_read_status_reg () & 0xC000;
-  printf ( "reading latch-type - status bits 0x%04X\n", status );
+  status = (ps_read_status_reg () >> 8) & 0xC000;
+  printf ( "latch status 0x%04X: %s, type %s\n", status,
+      (status & 0x8000) ? "configured" : "not configured",
+      (status & 0x4000) ? "374" : "373" );
 
   if ( !( status & 0x8000 ) )
   {
-    printf ( "latchtype not set yet\n" );
+    printf ( "configuring latch type %s\n", latchtype == LATCH_LS374 ? "374" : "373" );
     /* enable latchtype with 'P' key */
     ps_write_status_reg ( (uint16_t)(('P' << 3) | (latchtype << 2)) );
   }
   
   else
   {
-    printf ( "latchtype already set to 0x%04X\n", (status & 0x4000) );
+    printf ( "latch type is already configured\n" );
   }
 
   usleep ( 1000 );
   ps_write_status_reg ( 0 );
   usleep ( 1000 );
   status = (ps_read_status_reg () >> 8) & 0xC000;
-  printf ( "reading latch-type - status bits 0x%04X\n", status );
+  printf ( "latch status after write 0x%04X: %s, type %s\n", status,
+      (status & 0x8000) ? "configured" : "not configured",
+      (status & 0x4000) ? "374" : "373" );
 }
 
 /* read GPIO pins 0-7 - check that an IO is not running first */

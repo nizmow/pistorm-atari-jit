@@ -1196,12 +1196,6 @@ int main (int argc, char *argv[])
   /* Initialise PiSTorm */
   pulse_reset_inprogress = 0;
 
-  ps_setup_protocol();
-  ps_get_firmware_revision();
-  ps_pulse_halt();
-  ps_reset_state_machine();
-  ps_pulse_reset();
-
   FDD_enabled = false;
   DMA_Sound_enabled = false;
   tt_ram_available = false;
@@ -1260,6 +1254,25 @@ int main (int argc, char *argv[])
     return 1;
   }
   emulator_config_set_current(config);
+
+  ps_setup_protocol();
+  if (config->latch_type < 0)
+  {
+    fprintf(stderr, "[INIT] latch type not in config; defaulting to 373 (add 'latch 374' for 74LVC16374 boards)\n");
+    config->latch_type = LATCH_LS373;
+  }
+  ps_write_latchtype((uint16_t)config->latch_type);
+  {
+    uint16_t latch_status = (uint16_t)((ps_read_status_reg() >> 8) & 0xC000);
+    if (!(latch_status & 0x8000))
+      fprintf(stderr, "[INIT] WARNING: latch configuration not accepted (status 0x%04X); bus reads may be all-zero\n",
+              latch_status);
+  }
+  ps_get_firmware_revision();
+  ps_pulse_halt();
+  ps_reset_state_machine();
+  ps_pulse_reset();
+
   pistorm_set_blitter_mode(emulator_config_blitter_mode());
 
   /*
