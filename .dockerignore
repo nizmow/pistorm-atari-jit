@@ -1,0 +1,8 @@
+.git
+build
+ffmpeg
+**/*.o
+**/*.d
+emulator
+ataritest
+drmprobe

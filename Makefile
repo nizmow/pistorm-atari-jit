@@ -202,7 +202,7 @@ SLIRP_LIBS   = $(shell pkg-config --libs libslirp 2>/dev/null || pkg-config --li
 # `make ffmpeg` is how you SATISFY the FFmpeg dependency, so refusing to run it
 # because that dependency is missing would be a closed loop. ffmpeg-status has
 # to work on a broken system too - that is when you need it most.
-ifeq ($(filter clean ffmpeg ffmpeg-status,$(MAKECMDGOALS)),)
+ifeq ($(filter clean ffmpeg ffmpeg-status docker,$(MAKECMDGOALS)),)
 
 ifeq ($(shell command -v pkg-config 2>/dev/null),)
 $(error pkg-config not found. Install the build tools first: sudo apt install build-essential pkg-config)
@@ -427,6 +427,28 @@ ffmpeg-status:
 	    echo 'linked :'; ldd ./emulator | grep -E 'libav|libsw' || true; \
 	 else echo 'linked : (no emulator binary yet - run make)'; fi
 
-.PHONY: all clean ffmpeg-status
+# -----------------------------------------------------------------
+# Docker build (linux/arm64, native on Apple Silicon).
+#   make docker            -> fast INCREMENTAL build; objects + binaries land
+#                             in the working tree (gitignored). Rebuilds only
+#                             changed TUs. `make clean` removes the artifacts.
+#   make docker PIMODEL=PI3
+# See Dockerfile. The binaries run on the Pi, not here.
+# -----------------------------------------------------------------
+DOCKER_TOOLCHAIN ?= pistorm-atari-jit:toolchain
+
+# Build only the toolchain image (deps, no source), then run make against the
+# bind-mounted tree. Run as the current uid so the container writes the .o/.d
+# files it compiles as YOU, not root. The toolchain image is cached and only
+# rebuilds when the Dockerfile changes.
+docker: Dockerfile
+	docker build --platform linux/arm64 -t $(DOCKER_TOOLCHAIN) .
+	docker run --rm --platform linux/arm64 \
+		--user $$(id -u):$$(id -g) \
+		-v $(CURDIR):/src -w /src \
+		$(DOCKER_TOOLCHAIN) \
+		make PIMODEL=$(PIMODEL)
+
+.PHONY: all clean ffmpeg-status docker
 
 -include $(COBJS:%.o=%.d) $(CPPOBJS:%.o=%.d)
