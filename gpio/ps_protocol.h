@@ -18,6 +18,7 @@ extern "C" {
  * (ps_protocol.c). IPL samples from GPLEV0 taken while set may contain
  * driven data bits instead of the CPLD's IPL lines - discard them. */
 extern volatile uint8_t ps_bus_active;
+extern volatile uint32_t ps_protocol_timeouts;
 
 
 #ifdef USING_PI_CLK

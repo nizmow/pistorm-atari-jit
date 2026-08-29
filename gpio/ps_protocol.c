@@ -64,6 +64,9 @@ static atomic_flag ps_txn_lock = ATOMIC_FLAG_INIT;
  * Single writer at a time (whoever holds ps_txn_lock); readers only
  * need a coherent 0/1. */
 volatile uint8_t ps_bus_active = 0;
+volatile uint32_t ps_protocol_timeouts = 0;
+
+#define PS_TXN_POLL_LIMIT 10000000u
 
 static inline void ps_lock_bus(void)
 {
@@ -80,10 +83,17 @@ static inline void ps_unlock_bus(void)
   atomic_flag_clear_explicit(&ps_txn_lock, memory_order_release);
 }
 
-static inline void ps_wait_idle(void)
+static inline int ps_wait_idle(void)
 {
-  while (*ioread & PI_TXN_IN_PROGRESS)
+  uint32_t polls = 0;
+  while ((*ioread & PI_TXN_IN_PROGRESS) && polls++ < PS_TXN_POLL_LIMIT)
     asm volatile ("yield" ::: "memory");
+  if (*ioread & PI_TXN_IN_PROGRESS)
+  {
+    ps_protocol_timeouts++;
+    return 0;
+  }
+  return 1;
 }
 
 
@@ -286,6 +296,7 @@ static inline uint32_t ps_write_txn ( ps_io_t *ps_io )
   volatile uint32_t *const clr = ioclr;
   volatile uint32_t *const lev = ioread;
   uint32_t status;
+  uint32_t polls = 0;
 
   *set = (ps_io->data << 8) | REG_DATA;
   txn_pulse (set, clr);
@@ -314,7 +325,34 @@ static inline uint32_t ps_write_txn ( ps_io_t *ps_io )
    * one uncached GPIO read per transfer, thrown away */
   do {
     status = *lev;
-  } while (status & PI_TXN_IN_PROGRESS);
+  } while ((status & PI_TXN_IN_PROGRESS) && polls++ < PS_TXN_POLL_LIMIT);
+
+  if (status & PI_TXN_IN_PROGRESS)
+  {
+    ps_protocol_timeouts++;
+    *clr = TXN_END;
+    ps_io->berr = 1;
+    return status;
+  }
+
+  /* WRITE->READ turnaround settle. With 373 latches the CPLD can still be
+   * completing the bus write when TXN falls, so a read started immediately
+   * samples the stale write state (observed: WRITE16 read-back = previous
+   * word, WRITE8 = 0xFF). PISTORM_TX_SETTLE=N inserts N uncached GPLEV
+   * reads (~50-100ns each) before the bus is handed back; 0 = off. */
+  {
+    static int tx_settle = -1;
+
+    if (__builtin_expect(tx_settle < 0, 0)) {
+      const char *e = getenv("PISTORM_TX_SETTLE");
+      tx_settle = e ? atoi(e) : 0;
+      if (tx_settle < 0) tx_settle = 0;
+      if (tx_settle > 64) tx_settle = 64;
+    }
+
+    for (int i = 0; i < tx_settle; i++)
+      status = *lev;
+  }
 
   ps_io->berr = CHECK_BERR (status);
   return status;
@@ -401,6 +439,7 @@ static inline uint32_t ps_read_txn (ps_io_t *ps_io)
   volatile uint32_t *const clr = ioclr;
   volatile uint32_t *const lev = ioread;
   uint32_t status;
+  uint32_t polls = 0;
 
   *set = ( (ps_io->addr & 0xffff) << 8 ) | REG_ADDR_LO;
   txn_pulse (set, clr);
@@ -413,7 +452,16 @@ static inline uint32_t ps_read_txn (ps_io_t *ps_io)
 
   do {
     status = *lev;
-  } while (status & PI_TXN_IN_PROGRESS);
+  } while ((status & PI_TXN_IN_PROGRESS) && polls++ < PS_TXN_POLL_LIMIT);
+
+  if (status & PI_TXN_IN_PROGRESS)
+  {
+    ps_protocol_timeouts++;
+    *clr = TXN_END;
+    ps_io->berr = 1;
+    ps_io->data = 0;
+    return status;
+  }
 
   /* RE-SAMPLE AFTER THE HANDSHAKE - the zero-margin contract was a fault.
    *
@@ -610,7 +658,11 @@ void ps_write_status_reg ( uint16_t value )
   txn_go ();
 
   if ( timeout <= 0 )
+  {
+    ps_protocol_timeouts++;
+    *ioclr = TXN_END;
     printf ( "ps_write_status_reg () timed-out\n" );
+  }
 
   /* when writing status, there isn't a PI_TXN_IN_PROGRESS */
   ps_unlock_bus();
@@ -625,12 +677,22 @@ uint32_t ps_read_status_reg ()
   asm volatile ("dmb sy" : : : "memory");
 
   /* make sure no IO in progress */
-  ps_wait_idle ();
+  if (!ps_wait_idle ())
+  {
+    *ioclr = TXN_END;
+    ps_unlock_bus ();
+    return 0;
+  }
   
   *ioset = REG_STATUS;
   *ioset = PIN_RD;
 
-  ps_wait_idle ();
+  if (!ps_wait_idle ())
+  {
+    *ioclr = TXN_END;
+    ps_unlock_bus ();
+    return 0;
+  }
 
   status = *ioread;
  	*ioclr = TXN_END;
@@ -661,7 +723,7 @@ void ps_pulse_halt ()
 void ps_pulse_reset () 
 {
   ps_write_status_reg ( STATUS_BIT_RESET );
-  usleep ( 15 );
+  usleep ( 100000 );
   ps_write_status_reg ( 0 );
 }
 
@@ -704,7 +766,11 @@ void ps_read_ipl (uint8_t *ipl)
 {
   ps_lock_bus();
   asm volatile ("dmb sy" : : : "memory");
-  ps_wait_idle ();
+  if (!ps_wait_idle ())
+  {
+    ps_unlock_bus ();
+    return;
+  }
 
   *ipl = (*ioread & 0x60) >> 4; // GPIO5 & GPIO6 = IPL1 & IPL2
 
