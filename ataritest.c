@@ -113,7 +113,7 @@ uint16_t clrPattern = 0x0000;
 uint8_t *garbege_datas;
 extern volatile unsigned int *gpio;
 extern uint8_t fc;
-extern volatile uint32_t g_buserr;
+extern volatile uint8_t g_buserr;
 
 struct timespec f2;
 
@@ -232,6 +232,10 @@ int main ( int argc, char *argv[] )
     if ( parser ( argc, argv ) )
     {        
         ps_setup_protocol ();
+
+        /* a prior aborted run can leave the CPLD mid-transaction with TXN
+         * asserted; clear the state machine before any further bus access */
+        ps_reset_state_machine ();
 
         if ( latchType != -1 )
             ps_write_latchtype ( (uint16_t)latchType );
@@ -1731,10 +1735,10 @@ int parser ( int argc, char **argv )
     int syntax = 0;
     char arguments [80];
     char *tptr, *aptr;
-    char *cmdptr, *argptr;
+    char *cmdptr;
     char cmd [80];
     char arg [80];
-    char *savePtr, *cmdSave, *strSave;
+    char *cmdSave, *strSave;
     char *substring;// [80];
     char *cmdLine;
     char *cmdstr;
@@ -1817,7 +1821,6 @@ int parser ( int argc, char **argv )
                 else
                     valid = 0;
 
-                argptr = strtok ( savePtr, " " );
             }
 
             if ( valid )
@@ -1895,7 +1898,6 @@ int parser ( int argc, char **argv )
                 else
                     valid = 0;
 
-                argptr = strtok ( savePtr, " " );
             }
 
             if ( valid )
@@ -1928,7 +1930,6 @@ int parser ( int argc, char **argv )
                 else
                     valid = 0;
 
-                argptr = strtok ( savePtr, " " );
             }
 
             if ( valid )
@@ -1965,7 +1966,6 @@ int parser ( int argc, char **argv )
                 else
                     valid = 0;
 
-                argptr = strtok ( savePtr, " " );
             }
 
             if ( valid )
@@ -1996,7 +1996,6 @@ int parser ( int argc, char **argv )
                 else
                     valid = 0;
 
-                argptr = strtok ( savePtr, " " );
             }
 
             if ( valid )
@@ -2027,7 +2026,6 @@ int parser ( int argc, char **argv )
                 else
                     valid = 0;
 
-                argptr = strtok ( savePtr, " " );
             }
 
             if ( valid )
@@ -2189,7 +2187,6 @@ int parser ( int argc, char **argv )
                 else
                     valid = 0;
 
-                argptr = strtok ( savePtr, " " );
             }
 
             if ( valid )
