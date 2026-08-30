@@ -3116,13 +3116,40 @@ static addrbank pistorm_lowram_bank = {
  * span two chip cells that are not adjacent in the backing. */
 static uae_u32 sr_lget(uaecptr a)
 {
+    if (__builtin_expect(emulator_config_stram_nomirror_enabled(), 0)) {
+        g_buserr = 0;
+        fc_data();
+        uae_u32 v = ps_read_32(a & 0x00FFFFFF);
+        pistorm_buserr(a, 0, true, sz_long);
+        return v;
+    }
     if (__builtin_expect(g_stram_fold_hook, 0))
         return ((uae_u32)do_get_mem_word((uae_u16 *)sr_ptr(a)) << 16) |
                 do_get_mem_word((uae_u16 *)sr_ptr(a + 2));
     return do_get_mem_long((uae_u32 *)(natmem_offset + a));
 }
-static uae_u32 sr_wget(uaecptr a) { return do_get_mem_word((uae_u16 *)sr_ptr(a)); }
-static uae_u32 sr_bget(uaecptr a) { return *sr_ptr(a); }
+static uae_u32 sr_wget(uaecptr a)
+{
+    if (__builtin_expect(emulator_config_stram_nomirror_enabled(), 0)) {
+        g_buserr = 0;
+        fc_data();
+        uae_u32 v = ps_read_16(a & 0x00FFFFFF);
+        pistorm_buserr(a, 0, true, sz_word);
+        return v;
+    }
+    return do_get_mem_word((uae_u16 *)sr_ptr(a));
+}
+static uae_u32 sr_bget(uaecptr a)
+{
+    if (__builtin_expect(emulator_config_stram_nomirror_enabled(), 0)) {
+        g_buserr = 0;
+        fc_data();
+        uae_u32 v = ps_read_8(a & 0x00FFFFFF);
+        pistorm_buserr(a, 0, true, sz_byte);
+        return v;
+    }
+    return *sr_ptr(a);
+}
 
 /*
 static uae_u32 sr_lget(uaecptr a){ fc_data(); a &= 0x00FFFFFF; uae_u32 v=ps_read_32(a); pistorm_buserr(a,0,true,sz_long); return v; }
@@ -3133,6 +3160,13 @@ static void sr_lput(uaecptr a, uae_u32 v)
 {
     PROF_STRAM_W(a);
     g_buserr = 0;
+    if (__builtin_expect(emulator_config_stram_nomirror_enabled(), 0)) {
+        fc_data();
+        ps_write_32(a & 0x00FFFFFF, v);
+        pistorm_buserr(a, v, false, sz_long);
+        pistorm_smc(a, 4);
+        return;
+    }
     if (__builtin_expect(g_stram_fold_hook, 0)) {
         do_put_mem_word((uae_u16 *)sr_ptr(a),     (uae_u16)(v >> 16));
         do_put_mem_word((uae_u16 *)sr_ptr(a + 2), (uae_u16)v);
@@ -3150,6 +3184,13 @@ static void sr_wput(uaecptr a, uae_u32 v)
 {
     PROF_STRAM_W(a);
     g_buserr = 0;
+    if (__builtin_expect(emulator_config_stram_nomirror_enabled(), 0)) {
+        fc_data();
+        ps_write_16(a & 0x00FFFFFF, (uint16_t)v);
+        pistorm_buserr(a, v, false, sz_word);
+        pistorm_smc(a, 2);
+        return;
+    }
     do_put_mem_word((uae_u16 *)sr_ptr(a), (uae_u16)v);
     stram_snoop_lowram(a, 2);
     if (stram_needs_bus_write(a, 2)) {
@@ -3163,6 +3204,13 @@ static void sr_bput(uaecptr a, uae_u32 v)
 {
     PROF_STRAM_W(a);
     g_buserr = 0;
+    if (__builtin_expect(emulator_config_stram_nomirror_enabled(), 0)) {
+        fc_data();
+        ps_write_8(a & 0x00FFFFFF, (uint8_t)v);
+        pistorm_buserr(a, v, false, sz_byte);
+        pistorm_smc(a, 1);
+        return;
+    }
     *sr_ptr(a) = (uae_u8)v;
     stram_snoop_lowram(a, 1);
     if (stram_needs_bus_write(a, 1)) {
@@ -3183,6 +3231,13 @@ static int sr_check(uaecptr a, uae_u32 sz) { return 1; } // return a < ST_RAM_SI
 extern "C" uint16_t pistorm_blit_read16(uint32_t a)
 {
     a &= 0x00FFFFFEu;
+    if (emulator_config_stram_nomirror_enabled()) {
+        g_buserr = 0;
+        fc_data();
+        uint16_t v = ps_read_16(a);
+        pistorm_buserr(a, 0, true, sz_word);
+        return v;
+    }
     return do_get_mem_word((uae_u16 *)(natmem_offset + a));
 }
 
@@ -3191,6 +3246,13 @@ extern "C" void pistorm_blit_write16(uint32_t a, uint16_t v)
     a &= 0x00FFFFFEu;
     if (a >= ST_RAM_SIZE)
         return;                       /* the 24-bit blitter only writes ST-RAM */
+    if (emulator_config_stram_nomirror_enabled()) {
+        g_buserr = 0;
+        fc_data();
+        ps_write_16(a, v);
+        pistorm_smc(a, 2);
+        return;
+    }
     do_put_mem_word((uae_u16 *)(natmem_offset + a), v);
     stram_snoop_lowram(a, 2);
     if (stram_needs_bus_write(a, 2))
@@ -4131,6 +4193,14 @@ extern "C" void jit_mem_init(void)
     // map_region(0,           0x01000000,       &pistorm_dummy_bank);
     map_region(0, GUEST_RESERVE, &pistorm_dummy_bank); //&pistorm_io_bank);
     map_region(0, ST_RAM_SIZE, &pistorm_stram_bank);
+    if (emulator_config_stram_nomirror_enabled()) {
+        /* No shadow RAM: the JIT must never take the direct mirror pointer
+         * path — every ST-RAM access goes through sr_* and out to the real
+         * bus (see the nomirror branches in the accessors). jit_read_flag
+         * (offset 0x6c) is what the compiled code checks for direct access. */
+        pistorm_stram_bank.jit_read_flag = S_READ;
+        pistorm_stram_bank.flags &= ~ABFLAG_DIRECTACCESS;
+    }
     if (emulator_config_stram_direct_enabled()) {
         /* Fast mirror-only RAM is deliberately separate from stram_cache.
          * stram_cache still uses the ST-RAM handler so it can write through

@@ -38,6 +38,7 @@ typedef enum {
   CONFITEM_MACHINE,
   CONFITEM_STRAM_CACHE,
   CONFITEM_STRAM_DIRECT,
+  CONFITEM_STRAM_NOMIRROR,
   CONFITEM_VGA_RENDER,
   CONFITEM_NATIVE_HDMI,
   CONFITEM_CPU_CLOCK_MULTIPLIER,
@@ -99,6 +100,7 @@ static const config_switch_def config_switches[] = {
   { "machine", CONFITEM_MACHINE },
   { "stram_cache", CONFITEM_STRAM_CACHE },
   { "stram_direct", CONFITEM_STRAM_DIRECT },
+  { "stram_nomirror", CONFITEM_STRAM_NOMIRROR },
   { "vga_render", CONFITEM_VGA_RENDER },
   { "native_hdmi", CONFITEM_NATIVE_HDMI },
   { "cpu_clock_multiplier", CONFITEM_CPU_CLOCK_MULTIPLIER },
@@ -245,6 +247,11 @@ bool emulator_config_stram_cache_enabled(void)
 bool emulator_config_stram_direct_enabled(void)
 {
   return current_config ? current_config->stram_direct : false;
+}
+
+bool emulator_config_stram_nomirror_enabled(void)
+{
+  return current_config ? current_config->stram_nomirror : false;
 }
 
 bool emulator_config_native_hdmi_enabled(void)
@@ -898,6 +905,11 @@ struct emulator_config *load_config_file(char *filename) {
       case CONFITEM_STRAM_DIRECT:
         cfg->stram_direct = get_bool_default_true(parse_line + str_pos);
         printf ("[CFG] ST-RAM direct %s\n", cfg->stram_direct ? "enabled" : "disabled");
+        break;
+
+      case CONFITEM_STRAM_NOMIRROR:
+        cfg->stram_nomirror = get_bool_default_true(parse_line + str_pos);
+        printf ("[CFG] ST-RAM no-mirror %s\n", cfg->stram_nomirror ? "enabled" : "disabled");
         break;
 
       case CONFITEM_VGA_RENDER:

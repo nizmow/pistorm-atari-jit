@@ -118,6 +118,7 @@ struct emulator_config {
   bool blitter_real;   /* blitter=true: false = emulated (default), true = real chip */
   bool stram_cache;
   bool stram_direct;
+  bool stram_nomirror;   /* route ST-RAM reads AND writes over the real bus (no shadow) */
   uint32_t stram_size;   /* PHYSICAL ST-RAM bytes (0 = flat 4MB model) */
   bool vga_render;
   bool native_hdmi;
@@ -162,6 +163,7 @@ bool emulator_config_blitter_enabled(void);
 int  emulator_config_blitter_mode(void);  /* 0=off 1=real 2=emulated */
 bool emulator_config_stram_cache_enabled(void);
 bool emulator_config_stram_direct_enabled(void);
+bool emulator_config_stram_nomirror_enabled(void);
 bool emulator_config_native_hdmi_enabled(void);
 bool emulator_config_display_enabled(void);
 bool emulator_config_et4k_enabled(void);
