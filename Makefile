@@ -203,6 +203,9 @@ SLIRP_LIBS   = $(shell pkg-config --libs libslirp 2>/dev/null || pkg-config --li
 # because that dependency is missing would be a closed loop. ffmpeg-status has
 # to work on a broken system too - that is when you need it most.
 ifeq ($(filter clean ffmpeg ffmpeg-status docker release,$(MAKECMDGOALS)),)
+ifneq ($(MINIMAL),1)
+# (pkg-config dependency preflight — skipped for make MINIMAL=1, which
+#  links nothing but pthread/m/dl)
 
 ifeq ($(shell command -v pkg-config 2>/dev/null),)
 $(error pkg-config not found. Install the build tools first: sudo apt install build-essential pkg-config)
@@ -244,6 +247,7 @@ ifeq ($(strip $(SLIRP_LIBS)),)
 $(info NOTE: libslirp-dev not found - building WITHOUT WiFi networking support)
 endif
 
+endif # MINIMAL (pkg-config preflight)
 endif # not clean
 
 PIMODEL ?= PI4
@@ -312,6 +316,63 @@ CFLAGS   = $(COMMON_FLAGS)
 # exceptions must stay enabled (g++ default).
 CXXFLAGS = $(COMMON_FLAGS) -std=gnu++17
 
+# -----------------------------------------------------------------
+# Minimal-core build:  make MINIMAL=1
+# Strips every platform extra from the binary — FDD emu, IDE, DMA
+# sound, YM2149/PSG audio, ET4000, host video/AV record, USB keyboard,
+# networking, STBOX sandbox, Musashi, and the NatFeat feature layer —
+# leaving the CPU+JIT+natmem+bus+IPL core. The excluded subsystems'
+# exported symbols are provided in disabled form by
+# platforms/atari/minimal_stubs.cpp, so the core sources need no #ifdefs;
+# their own runtime gates (FDD_enabled etc.) keep every hook inert.
+# The pkg-config dependency preflight is skipped (no SDL3/DRM/FFmpeg/...).
+# -----------------------------------------------------------------
+MINIMAL ?= 0
+ifeq ($(MINIMAL),1)
+MINIMAL_DROP_C = \
+  platforms/atari/IDE.c \
+  platforms/atari/idedriver.c \
+  platforms/atari/fdd/atari_fdd.c \
+  platforms/atari/fdd/dma_snoop.c \
+  platforms/atari/fdd/platform_atari_fdd.c \
+  platforms/atari/network/pistorm_net.c \
+  platforms/atari/network/pistorm_net_tap.c \
+  platforms/atari/network/pistorm_net_slirp.c \
+  platforms/atari/network/platform_atari_network.c \
+  platforms/atari/audio/dmasnd_hdmi.c \
+  platforms/atari/audio/dmasnd_capture.c \
+  platforms/atari/audio/emu2149.c \
+  platforms/atari/audio/ym2149.c \
+  platforms/atari/avrecord.c \
+  platforms/atari/video/vidplane.c \
+  platforms/atari/video/vidplay.c \
+  platforms/atari/kbd_usb.c \
+  $(MUSASHI_C) \
+  platforms/atari/stbox/stbox.c \
+  platforms/atari/stbox/stbox_host.c \
+  platforms/atari/stbox/stbox_psg.c \
+  platforms/atari/stbox/stbox_realfdc.c
+MINIMAL_DROP_CPP = \
+  platforms/atari/et4000/et4000.c \
+  platforms/atari/et4000/et4000_drm.c \
+  platforms/atari/et4000/pcem/vid_svga.c \
+  platforms/atari/et4000/pcem/vid_svga_render.c \
+  platforms/atari/et4000/pcem/vid_et4000.c \
+  platforms/atari/et4000/pcem/vid_unk_ramdac.c \
+  platforms/atari/et4000/pcem/pcem_shim.c \
+  platforms/atari/et4000/pcem/et4000_engine.c \
+  platforms/atari/network/atari_natfeat.cpp \
+  platforms/atari/psctrl/psctrl.cpp \
+  platforms/atari/psimg/psimg.cpp
+CFILES := $(filter-out $(MINIMAL_DROP_C),$(CFILES))
+PISTORM_CPP := $(filter-out $(MINIMAL_DROP_CPP),$(PISTORM_CPP))
+PISTORM_CPP += platforms/atari/minimal_stubs.cpp
+DEFS += -DPISTORM_MINIMAL
+LDLIBS = -lpthread -lm -ldl
+else
+LDLIBS = -lpthread -lm -ldl -l:libdrm.a $(SLIRP_LIBS) -lz $(SDL3_LIBS) -lmpg123 -ljpeg $(AV_LIBS)
+endif
+
 TARGET  = $(EXENAME)
 COBJS   = $(CFILES:%.c=%.o)
 #OBJS    += $(patsubst %.S,%.o,$(wildcard platforms/atari/et4000/*.S))
@@ -354,7 +415,7 @@ $(AV_STAMP): FORCE
 	   echo "NOTE: FFmpeg choice changed - the emulator will be relinked"; }
 
 $(TARGET): $(COBJS) $(CPPOBJS) $(AV_STAMP)
-	$(CXX) -o $@ $(COBJS) $(CPPOBJS) $(CXXFLAGS) -lpthread -lm -ldl -l:libdrm.a $(SLIRP_LIBS) -lz $(SDL3_LIBS) -lmpg123 -ljpeg $(AV_LIBS)
+	$(CXX) -o $@ $(COBJS) $(CPPOBJS) $(CXXFLAGS) $(LDLIBS)
 	@ldd $@ 2>/dev/null | grep -qE '/usr/lib.*libavcodec' && { \
 	   echo; \
 	   echo "WARNING: this build resolves libavcodec from /usr/lib - the DISTRO"; \
