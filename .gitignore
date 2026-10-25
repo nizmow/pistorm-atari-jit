@@ -2,6 +2,7 @@
 *.o
 *.d
 emulator
+/monster-bank-test
 ataritest
 drmprobe
 /m68kmake

@@ -98,6 +98,7 @@ struct emulator_config {
   int fps;
   bool ttram;
   uint32_t ttram_size;
+  bool monster;           /* MonSTer 8MB Alt-RAM below 16MB */
   bool addr32;
   ROM_s rom;//rom[2];
   //int rom_count;
@@ -188,6 +189,7 @@ bool emulator_config_psvidel_enabled(void);
 bool emulator_config_falcon_dsp_enabled(void);
 bool emulator_config_display_enabled(void);
 bool emulator_config_et4k_enabled(void);
+bool emulator_config_monster_enabled(void);
 bool emulator_config_fvdi_enabled(void);
 int emulator_config_graphics_driver(void);
 int emulator_config_fps(void);

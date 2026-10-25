@@ -109,6 +109,7 @@ static int render_boot_key(const char *key, const struct emulator_config *c,
       snprintf(out, n, "ttram %uM", (unsigned)(c->ttram_size / (1024u * 1024u)));
     return 1;
   }
+  if (!strcmp(key, "monster")) { snprintf(out, n, "monster %s", c->monster ? "true" : "false"); return 1; }
   if (!strcmp(key, "addr32"))       { snprintf(out, n, "addr32 %s", c->addr32 ? "true" : "false"); return 1; }
   if (!strcmp(key, "stram_cache"))  { snprintf(out, n, "stram_cache %s", c->stram_cache ? "true" : "false"); return 1; }
   if (!strcmp(key, "stram_direct")) { snprintf(out, n, "stram_direct %s", c->stram_direct ? "true" : "false"); return 1; }

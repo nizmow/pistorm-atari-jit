@@ -23,6 +23,7 @@
 #include "platforms/atari/et4000/et4000.h"
 // #include "platforms/atari/et4000/native_vga.h"
 #include "config_file/config_file.h"
+#include "platforms/atari/monster.h"
 #include "platforms/atari/setup/setup_cfg.h"
 #include "platforms/atari/setup/setup_page.h"
 #include "platforms/atari/setup/native_probe.h"
@@ -1736,6 +1737,8 @@ int pistorm_pc_executable(unsigned int pc)
   }
   if (pc < pistorm_stram_top())                         /* ST-RAM window */
     return 1;
+  if (monster_ram_contains(pc, 2))
+    return 1;                                           /* 24-bit Alt-RAM */
   if (tt_ram_available &&
       pc >= 0x01000000u && pc - 0x01000000u < tt_ram_size)
     return 1;                                           /* TT/alt-RAM    */

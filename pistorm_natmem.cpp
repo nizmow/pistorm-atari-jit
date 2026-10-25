@@ -27,6 +27,7 @@
 #include "jit/compemu.h"
 #include "platforms/atari/et4000/et4000.h"
 #include "config_file/config_file.h"
+#include "platforms/atari/monster.h"
 #include <sys/mman.h>
 #include <string.h>
 #include <stdlib.h>
@@ -3754,6 +3755,9 @@ static uae_u32 hw_lget(uaecptr a)
     fc_data();
     a = hw_fold_addr(a);
 
+    if (monster_io_owns(a) || monster_io_owns(a + 2))
+        return (hw_wget(a) << 16) | (hw_wget(a + 2) & 0xffffu);
+
     if (fpu_in_regs(a) || nova_io_alias_addr(a))
         return 0;
     {
@@ -3843,6 +3847,15 @@ static uae_u32 hw_wget(uaecptr a)
     fc_data();
     a = hw_fold_addr(a);
 
+    {
+        uint32_t value;
+        int result = monster_io_read(a, 2, &value);
+        if (result) {
+            if (result < 0) hardware_exception2(a, 0, true, false, sz_word);
+            return result > 0 ? value : 0;
+        }
+    }
+
     if (fpu_in_regs(a))
         return 0;
     if (nova_io_alias_addr(a))
@@ -3923,6 +3936,15 @@ static uae_u32 hw_bget(uaecptr a)
     fc_data();
     a = hw_fold_addr(a);
 
+    {
+        uint32_t value;
+        int result = monster_io_read(a, 1, &value);
+        if (result) {
+            if (result < 0) hardware_exception2(a, 0, true, false, sz_byte);
+            return result > 0 ? value : 0;
+        }
+    }
+
     if (fpu_in_regs(a))
         return 0;
     if (nova_io_alias_addr(a))
@@ -4002,6 +4024,14 @@ static void hw_lput(uaecptr a, uae_u32 v)
     g_buserr = 0;
     fc_data();
     a = hw_fold_addr(a);
+
+    if (monster_io_owns(a) || monster_io_owns(a + 2))
+    {
+        hw_wput(a, v >> 16);
+        hw_wput(a + 2, v & 0xffffu);
+        return;
+    }
+
     /* memcfg ($FF8001) has no HW_PAGE case of its own and fell through
      * to hw_bus_* unsnooped - the model missed every guest memcfg write
      * on this, the dispatcher that actually runs (1MB Mega ST case) */
@@ -4118,6 +4148,15 @@ static void hw_wput(uaecptr a, uae_u32 v)
     g_buserr = 0;
     fc_data();
     a = hw_fold_addr(a);
+
+    {
+        int result = monster_io_write(a, v, 2);
+        if (result) {
+            if (result < 0) hardware_exception2(a, v, false, false, sz_word);
+            return;
+        }
+    }
+
     stram_memcfg_snoop(a, v, 2);   /* see hw_lput */
     v = pistorm_stram_memcfg_bus_value(a, v, 2);
     falcon_tos_snoop(a, v, 2);
@@ -4227,6 +4266,15 @@ static void hw_bput(uaecptr a, uae_u32 v)
     g_buserr = 0;
     fc_data();
     a = hw_fold_addr(a);
+
+    {
+        int result = monster_io_write(a, v, 1);
+        if (result) {
+            if (result < 0) hardware_exception2(a, v, false, false, sz_byte);
+            return;
+        }
+    }
+
     stram_memcfg_snoop(a, v, 1);   /* see hw_lput */
     v = pistorm_stram_memcfg_bus_value(a, v, 1);
     falcon_tos_snoop(a, v, 1);
@@ -4415,6 +4463,26 @@ static addrbank pistorm_lowram_bank = {
     0, S_WRITE
 };
 
+/* MonSTer RAM uses the mirror-only handlers, with explicit 24-bit
+ * folding for handler calls through a tagged-pointer alias. */
+static uaecptr monster_addr(uaecptr a)
+{
+    return pistorm_addr24 ? a & 0x00ffffffu : a;
+}
+static uae_u32 ma_lget(uaecptr a) { return lo_lget(monster_addr(a)); }
+static uae_u32 ma_wget(uaecptr a) { return lo_wget(monster_addr(a)); }
+static uae_u32 ma_bget(uaecptr a) { return lo_bget(monster_addr(a)); }
+static void ma_lput(uaecptr a, uae_u32 v) { lo_lput(monster_addr(a), v); }
+static void ma_wput(uaecptr a, uae_u32 v) { lo_wput(monster_addr(a), v); }
+static void ma_bput(uaecptr a, uae_u32 v) { lo_bput(monster_addr(a), v); }
+static uae_u8 *ma_xlate(uaecptr a) { return natmem_offset + monster_addr(a); }
+static int ma_check(uaecptr a, uae_u32 n) { return monster_ram_contains(monster_addr(a), n); }
+static addrbank pistorm_monster_bank = {
+    ma_lget, ma_wget, ma_bget, ma_lput, ma_wput, ma_bput,
+    ma_xlate, ma_check, NULL, "MonSTer Alt-RAM", "MonSTer Alt-RAM",
+    ma_lget, ma_wget, ABFLAG_RAM | ABFLAG_DIRECTACCESS, 0, S_WRITE
+};
+
 /* ---- in jit_mem_init(), in the baseaddr block (next to the others): ----
  *
  *     pistorm_lowram_bank.baseaddr = natmem_offset + 0;
@@ -4528,6 +4596,10 @@ extern "C" void pistorm_blit_write16(uint32_t a, uint16_t v)
         return;
     }
     a &= 0x00FFFFFEu;
+    if (monster_ram_contains(a, 2)) {
+        ma_wput(a, v);
+        return;
+    }
     if (a >= g_stram_top)
         return;                       /* the 24-bit blitter only writes ST-RAM */
     do_put_mem_word((uae_u16 *)(natmem_offset + a), v);
@@ -5456,6 +5528,31 @@ static void map_region(uaecptr start, uint32_t len, addrbank *b)
     }
 }
 
+/* Bank changes happen on the CPU thread. Hard-flush translations only
+ * after leaving compiled code, as with PSCTRL's deferred settings. */
+extern "C" {
+int pistorm_monster_pending;
+void jit_request_cpu_exit(void);
+void psctrl_jit_flush_now(void);
+void pistorm_monster_apply_pending(void)
+{
+    pistorm_monster_pending = 0;
+    psctrl_jit_flush_now();
+}
+}
+
+static void monster_map_ram(uint32_t bytes)
+{
+    map_region(MONSTER_RAM_BASE, MONSTER_RAM_MAX, &pistorm_dummy_bank);
+    if (bytes)
+        map_region(MONSTER_RAM_BASE, bytes, &pistorm_monster_bank);
+    if (currprefs.cachesize > 0) {
+        pistorm_monster_pending = 1;
+        jit_request_cpu_exit();
+    }
+    printf("[MONSTER] Alt-RAM %uMB at $400000 (ST-RAM unchanged)\n", bytes >> 20);
+}
+
 /* ST-RAM bank routing for stram_size: the region above a single
  * populated bank is sent to the REAL bus, so TOS's cold-boot memory
  * probe reads the actual machine's open bus there - an absent bank has
@@ -5682,6 +5779,7 @@ extern "C" void jit_mem_init(void)
     pistorm_io_bank.baseaddr = natmem_offset + IO_HW_BASE;
     pistorm_hw_bank.baseaddr = natmem_offset + 0x00FF0000;
     pistorm_ttram_bank.baseaddr = natmem_offset + TT_RAM_BASE;
+    pistorm_monster_bank.baseaddr = natmem_offset + MONSTER_RAM_BASE;
 #if (1)
     if (emulator_config_et4k_enabled())
         pistorm_guard_bank.baseaddr = natmem_offset + GUARD_BASE;
@@ -5824,6 +5922,7 @@ extern "C" void jit_mem_init(void)
 
     if (tt_ram_available)
         map_region(TT_RAM_BASE, tt_ram_size, &pistorm_ttram_bank);
+    monster_init(emulator_config_monster_enabled(), monster_map_ram);
     // pistorm_bank_profile_init ();
 
     /* Force full-distrust off for direct regions, on for I/O via the bank

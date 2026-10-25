@@ -203,6 +203,7 @@ static int gen_set(const struct ps_item *it, int v)
 BOOT_BOOL(fpu)
 BOOT_BOOL(mmu)
 BOOT_BOOL(cpu_compatible)
+BOOT_BOOL(monster)
 BOOT_BOOL(addr32)
 BOOT_BOOL(stram_cache)
 BOOT_BOOL(stram_direct)
@@ -668,6 +669,7 @@ ITEM("stram_size", "ST-RAM", PS_TAB_CPU, PS_K_ENUM, PS_C_BOOT, PS_U_NONE,
      0, 6, 1, L_stram, 7, PS_F_NEWLINE, NULL, bg_stram, bs_stram, NULL),
 ITEM("ttram", "TT-RAM", PS_TAB_CPU, PS_K_ENUM, PS_C_BOOT, PS_U_NONE,
      0, 5, 1, L_ttram, 6, 0, NULL, bg_ttram_size, bs_ttram_size, NULL),
+BOOT_B("monster", "MonSTer 8MB Alt-RAM", PS_TAB_CPU, monster),
 BOOT_B("addr32", "32-bit addressing", PS_TAB_CPU, addr32),
 BOOT_B("stram_cache", "ST-RAM cache", PS_TAB_CPU, stram_cache),
 BOOT_B("stram_direct", "ST-RAM direct", PS_TAB_CPU, stram_direct),
@@ -1257,7 +1259,7 @@ uint32_t psctrl_settings_call(uint32_t subop, uint32_t p0, uint32_t p1,
 
 static const char *const g_bootkeys[] = {
   "machine", "cpu", "fpu", "mmu", "cpu_compatible", "shifter", "blitter",
-  "stram_size", "ttram", "addr32", "stram_cache", "stram_direct",
+  "stram_size", "ttram", "monster", "addr32", "stram_cache", "stram_direct",
   "native_hdmi", "psvidel", "vga", "monitor", "ym2149", "dma_sound", "falcon_dsp",
   "ide", "kbd", "network", "network_irq", "rom", "stbox_tos",
   "stbox_plane", "jit_cache", "cpu_speed"
