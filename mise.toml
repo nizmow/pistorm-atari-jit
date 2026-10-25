@@ -1,0 +1,38 @@
+[tools]
+"aqua:Kitware/CMake" = "4.1.2"
+"aqua:ninja-build/ninja" = "1.13.1"
+
+[tasks."quartus:image"]
+description = "Build the Quartus 20.1.1/MAX II Podman image from local vendor downloads"
+run = '''
+if [ "${ACCEPT_INTEL_EULA:-0}" != 1 ]; then
+  echo 'Read rtl/README.md, download the installer/device files, and set ACCEPT_INTEL_EULA=1 after accepting the license.' >&2
+  exit 1
+fi
+podman build --build-arg ACCEPT_INTEL_EULA=1 \
+  --tag "${CPLD_QUARTUS_IMAGE:-localhost/pistorm-quartus:20.1.1}" rtl/docker
+'''
+
+[tasks."build:cpld"]
+description = "Build both CPLDs and generate program/verify SVFs"
+run = "bash rtl/tools/build.sh all"
+
+[tasks."build:cpld:epm240"]
+description = "Build the EPM240T100I5 CPLD and program/verify SVFs"
+run = "bash rtl/tools/build.sh EPM240"
+
+[tasks."build:cpld:epm570"]
+description = "Build the EPM570T100C5 CPLD and program/verify SVFs"
+run = "bash rtl/tools/build.sh EPM570"
+
+[tasks."test:cpld"]
+description = "Run all 36 native Verilator CPLD tests"
+run = "bash tests/cpld/run.sh"
+
+[tasks."test:cpld:arbiter"]
+description = "Run arbiter and full-engine ownership-boundary tests"
+run = "bash tests/cpld/run.sh -R 'arbiter_|arbitration-'"
+
+[tasks."test:cpld:faults"]
+description = "Run the seeded timing/fault campaigns"
+run = "bash tests/cpld/run.sh -R '^fault_campaign_'"
