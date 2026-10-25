@@ -77,8 +77,8 @@ sudo rtl/pistormflash -s rtl/EPM570_bitstream_dev_1_1b.svf     # EPM570 boards
 
 then power-cycle the ST. On start-up the emulator reports `[INIT] PiSTorm firmware EPM240 1.1b` (`EPM570 1.1b` on an EPM570, `EPM240 1.0b`, or `0.83a` for the 253 bitstream).
 
-For the CPLD source builds, host regression tests, pin audit and tested H5
-configuration, see [rtl/README.md](rtl/README.md).
+For CPLD source builds, host regression tests and pin verification, see
+[rtl/README.md](rtl/README.md).
 
 #### ST reset button (firmware 1.0b and later, EPM240 or EPM570)
 With 1.0b the CPLD drives GPIO4 low while the ST holds its RESET line low (reset button or the ST's own power-on reset - never for a reset the emulator itself issues). The ST's chips have just been reset under the running emulator, so the emulator stops cleanly, waits for the button to be released (up to 10 s), exits with code 42 and is relaunched - the same restart as Ctrl+Alt+Undo - and the ST boots afresh.

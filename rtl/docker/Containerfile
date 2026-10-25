@@ -46,7 +46,7 @@ RUN test "$ACCEPT_INTEL_EULA" = 1 \
 
 ENV PATH="/opt/intelFPGA_lite/20.1/quartus/bin:${PATH}"
 # Load libudev before Quartus's allocator to avoid the libsys_cpt deep-bind
-# allocator mismatch (realloc(): invalid pointer) in WSL/container builds.
+# allocator mismatch (realloc(): invalid pointer) with system libudev.
 ENV LD_PRELOAD="/lib/x86_64-linux-gnu/libudev.so.1"
 WORKDIR /work
 CMD ["quartus_sh", "--version"]

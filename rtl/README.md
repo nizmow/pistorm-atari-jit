@@ -5,7 +5,8 @@ EPM240 targets **EPM240T100I5** (-40 to 100 C junction model); EPM570 targets
 **EPM570T100C5**. These target selections are explicit, not auto-detection.
 Check your chip/package/board before selecting a project. The classic DIP64
 PiStorm pin map was checked against the official Rev B PCB, rather than old
-interface signal names. See [changes](CHANGELOG.md) and [test system/results](TEST-SYSTEM.md).
+interface signal names. See the [changelog](CHANGELOG.md) and
+[validation appendix](TEST-SYSTEM.md).
 
 ## Build tasks
 
@@ -47,15 +48,14 @@ podman run --rm localhost/pistorm-quartus:20.1.1 quartus_sh -t /tmp/verify-devic
 
 The equivalent image build without mise is
 `podman build --build-arg ACCEPT_INTEL_EULA=1 --tag localhost/pistorm-quartus:20.1.1 rtl/docker`.
-Quartus itself runs in the x86-64 Linux/WSL2 build environment; the Pi is the
-programming/test target, not the Quartus build host.
+Build the image on an x86-64 host with Linux container support. The generated
+SVFs can then be programmed from the target Pi.
 
 The image and build wrapper preload `/lib/x86_64-linux-gnu/libudev.so.1` to
 avoid Quartus's allocator conflict during device enumeration. Without it,
 `quartus_map` can abort with `realloc(): invalid pointer`, followed by a generic
-memory warning. Preloading libudev fixed that crash on the WSL2 build host;
-no Podman memory-limit increase was needed. See the original
-[WSL report][wsl] and [allocator diagnosis][allocator].
+memory warning. Background and observed symptoms are recorded in the
+[build-environment findings](TEST-SYSTEM.md#build-environment-findings).
 
 ## Compile and generate programming files
 
@@ -94,20 +94,21 @@ It checks the reference layout; it does not identify a physical PCB revision.
 ## Host regression tests
 
 Run `mise run test:cpld -j 3` (or `bash tests/cpld/run.sh -j 3`). It bootstraps pinned Verilator 5.052 when
-needed and runs 36 CTest entries. The tests work in this checkout alone;
-no Emu68 checkout, Pi, Atari or Quartus is required. See
+needed and runs 36 CTest entries. These are standalone host tests and require
+no Pi, Atari or Quartus. See
 [tests/cpld/README.md](../tests/cpld/README.md) for prerequisites, coverage and limits.
 
 ## Hardware use and remaining limits
 
-The EPM240 original rebuild and patched RC1 boot EmuTOS and run Gembench from
-floppy on the [documented H5 system](TEST-SYSTEM.md). EPM570 hardware has not
-been tested. Existing shipped SVFs remain unchanged. Firmware revision words
+Match the selected device, package, board wiring and latch type before
+programming. Tested configurations and results are recorded in the
+[validation appendix](TEST-SYSTEM.md). Existing shipped SVFs remain unchanged.
+Firmware revision words
 `$421`/`$521` are compatibility identities, not proof of the fixes: retain file hashes.
 
 `M68K_CLK` is constrained to 124 ns (8.0645 MHz), covering the standard ~8 MHz
-H5/ST clock. The inherited 141 ns constraint was too slow. Five internal/interface
-clocks and external input/output paths remain unconstrained in EPM240 RC1.
+ST bus clock. Faster physical clocks require updated constraints. Five internal/interface
+clocks and external input/output paths remain unconstrained in the EPM240 build.
 The two original unsafe-latch warnings for `PI_BERR` and `RW_INT` remain.
 Requests are captured by a command-write flip-flop. Simulation
 does not model electrical propagation, setup/hold violations or metastability.
@@ -128,11 +129,10 @@ Use your installed service name. Program writes the configuration; verify
 checks it through JTAG without rewriting it. After both succeed, power-cycle
 before starting the same emulator/configuration. A verify file for a new
 rebuild should not be expected to match a different installed payload. The
-legacy flasher ignores requested JTAG frequency; its warning is expected on
-the tested Pi 3A+. No Pi 5/RP1 compatibility is claimed. Preserve rollback files
+legacy flasher ignores requested JTAG frequency; its warning does not indicate
+a verification failure. See the validation appendix for tested Pi configurations.
+Preserve rollback files
 separately rather than overwriting the working image.
 
 [quartus]: https://www.altera.com/downloads/fpga-development-tools/quartus-prime-lite-edition-design-software-version-20-1-1-linux
-[wsl]: https://community.altera.com/discussions/quartus-prime/running-quartus-prime-standard-on-wsl-crashes-in-libudev-so/260408
-[allocator]: https://community.altera.com/discussions/quartus-prime/quartus-map-crash-possibly-due-to-shared-library-shenanigans/332593
 [board]: https://github.com/captain-amygdala/pistorm/blob/main/PiStormRevB_ascii.zip

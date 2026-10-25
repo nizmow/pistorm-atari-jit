@@ -83,7 +83,7 @@ if declared != expected:
                   for s in sorted(expected.keys() | declared.keys()) if expected.get(s) != declared.get(s))
 device = re.search(r'^set_global_assignment -name DEVICE (\S+)', qsf, re.M)
 if not device or device[1] != 'EPM240T100I5':
-    errors.append('Expected exact user part EPM240T100I5')
+    errors.append('Expected EPM240T100I5 project target')
 
 report = args.pin_report.read_text()
 if not re.search(r'ASSIGNED TO AN: EPM240T100I5\b', report):

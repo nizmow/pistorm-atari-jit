@@ -1,4 +1,7 @@
-# CPLD test system
+# Appendix: validation hardware and build findings
+
+These results describe one tested configuration, not required hardware for
+building or running the project.
 
 | Component | Tested configuration |
 |---|---|
@@ -37,8 +40,9 @@ this as a measured 16 MHz physical bus or a JIT performance result.
 
 RC1 EPM240 source SHA256:
 `077505eeb525b795c1e4b1009c8d228f74f4ca327e714cda05180ee9afb956aa`.
-This PR keeps that Verilog byte-for-byte. The consolidated build wrapper also
-reproduces the RC1 program/verify SVF command streams and payload exactly;
+This identifies the tested source snapshot; subsequent comment cleanup does
+not change its logic. The consolidated build wrapper also reproduced the
+RC1 program/verify SVF command streams and payload exactly;
 file header comments differ by build path/time. A successful flash verifies contents;
 the desktop/floppy result supplies initial functional hardware evidence.
 ACSI, extended stability, fault injection and EPM570 hardware were not tested.
@@ -47,3 +51,19 @@ For the next comparison, preserve the same emulator/configuration and record
 the SVF checksum, boot, repeated floppy reads, expendable-media writes, ACSI
 if present, and reset-button behavior. Keep the boot-tested original rebuild
 as rollback. Both images report `$421`, so that word cannot distinguish them.
+
+## Build-environment findings
+
+On the WSL2/rootless-Podman build host, Quartus 20.1.1 initially aborted in
+`quartus_map` with `realloc(): invalid pointer`. The shell reported a generic
+memory error, but the container had no memory cap or OOM events. Preloading
+system `libudev.so.1` resolved the allocator/library conflict. This workaround
+is included in the container recipe; WSL is not a build prerequisite.
+See the original [WSL report][wsl] and [allocator diagnosis][allocator].
+
+The legacy JTAG flasher's ignored-frequency warning was observed on the Pi 3A+;
+program and independent verify operations completed successfully. No Pi 5/RP1
+programming tests were performed.
+
+[wsl]: https://community.altera.com/discussions/quartus-prime/running-quartus-prime-standard-on-wsl-crashes-in-libudev-so/260408
+[allocator]: https://community.altera.com/discussions/quartus-prime/quartus-map-crash-possibly-due-to-shared-library-shenanigans/332593

@@ -55,7 +55,7 @@ set_tests_properties(${rtl_tests} PROPERTIES TIMEOUT 30)
 
 set_tests_properties(fault_campaign_240 fault_campaign_570 PROPERTIES TIMEOUT 240 LABELS faults)
 
-# Also cover the H5 test system's transparent LVC16373A external latches.
+# Also cover transparent LVC16373A external latches.
 # Keep the RTL's LS374 compatibility timing, but model the physical latch part.
 foreach(scenario ram lanes slow berr dma controls arbitration-pending arbitration-active request-strobe)
     add_test(NAME rtl_240_16373_${scenario} COMMAND rtl_240 --scenario ${scenario}

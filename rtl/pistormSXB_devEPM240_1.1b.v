@@ -451,7 +451,7 @@ module pistormsxb_devEPM240(
 	
 
 	
-	/* EMU68ST-13 simulation regressions: one request per header strobe,
+	/* CPLD protocol regressions: one request per header strobe,
 	 * sticky in-cycle faults, and explicit cancellation on reset/INIT.
 	 * Development source changes: shipped SVFs have NOT been rebuilt. */
 	reg cycle_fault = 1'b0;

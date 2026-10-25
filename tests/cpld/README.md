@@ -2,7 +2,7 @@
 
 Native C/C++ tests drive the actual EPM240 and EPM570 Verilog independently.
 The C wire driver in `driver/` is a portable test-side implementation of the
-PiStorm Atari register/GPIO protocol, extracted from the Emu68 Atari backend.
+PiStorm Atari register/GPIO protocol.
 It is not linked into the emulator and is not the production JIT driver.
 No other checkout or firmware build is required.
 
@@ -23,8 +23,7 @@ Bootstrapping Verilator also needs make, autoconf, flex, bison and Perl (Ubuntu:
 `build-essential cmake ninja-build python3 git autoconf flex bison perl`).
 The first run clones/builds Verilator **5.052**, source commit
 `ea338be98e1e838d3518809ce8899f85a009963c`, under `.tools/` and needs network.
-Compiler/system libraries
-are not pinned. Set `CPLD_VERILATOR_ROOT` to an existing source-tree build of
+Compiler/system libraries are not pinned. Set `CPLD_VERILATOR_ROOT` to an existing source-tree build of
 that exact revision, `CPLD_TEST_BUILD_DIR` to change the output directory,
 or `CPLD_BUILD_JOBS` to change compilation parallelism (default 2).
 

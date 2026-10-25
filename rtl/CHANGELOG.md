@@ -23,8 +23,8 @@ test driver does not retry automatically.
 
 Added standalone CPLD harnesses, mise build/test tasks, reconstructed Quartus
 projects, revision includes, an ~8 MHz ST clock constraint, classic-board pin
-audit, and Podman build recipe (including
-the WSL/container libudev workaround), and host simulation/fault campaigns.
+audit, a Podman build recipe with the system-libudev compatibility fix, and
+host simulation/fault campaigns.
 The EPM240 project targets the tested EPM240T100I5; EPM570 targets EPM570T100C5.
 
 The reconstructed projects follow physical GPIO nets: WR GPIO1/pin33,
