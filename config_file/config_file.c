@@ -32,6 +32,7 @@ typedef enum {
   CONFITEM_GRAPHICS_CARD,
   CONFITEM_FPS,
   CONFITEM_TTRAM,
+  CONFITEM_MONSTER,
   CONFITEM_ADDR32,
   CONFITEM_ROM,
   CONFITEM_IDE,
@@ -101,6 +102,7 @@ static const config_switch_def config_switches[] = {
   { "vga", CONFITEM_GRAPHICS_CARD },
   { "fps", CONFITEM_FPS },
   { "ttram", CONFITEM_TTRAM },
+  { "monster", CONFITEM_MONSTER },
   { "addr32", CONFITEM_ADDR32 },
   { "rom", CONFITEM_ROM },
   { "ide", CONFITEM_IDE },
@@ -298,6 +300,11 @@ uint32_t emulator_config_stram_size(void)
 uint32_t emulator_config_falcon_stram(void)
 {
   return current_config ? current_config->falcon_stram : 0;
+}
+
+bool emulator_config_monster_enabled(void)
+{
+  return current_config && current_config->monster;
 }
 
 bool emulator_config_stram_cache_enabled(void)
@@ -999,6 +1006,10 @@ struct emulator_config *load_config_file_section(char *filename,
         
         break;
 
+      case CONFITEM_MONSTER:
+        cfg->monster = get_bool_default_true(parse_line + str_pos);
+        break;
+
       case CONFITEM_ADDR32:
         cfg->addr32 = get_bool_default_true(parse_line + str_pos);
         break;
@@ -1640,6 +1651,15 @@ struct emulator_config *load_config_file_section(char *filename,
 
     if (cfg->addr32)
       printf ("[CFG] 32-bit address space enabled\n");
+  }
+  /* The board has a fixed 8MB aperture at $400000-$BFFFFF. Reject
+   * overlapping configurations before either device builds its banks. */
+  if (cfg->monster &&
+      ((cfg->graphics.card == ET4000AX && cfg->graphics.driver != FVDI) ||
+       (cfg->machine_set && cfg->machine_kind == 3) || cfg->falcon_stram > 4u * SIZE_MEGA))
+  {
+    printf("[CFG] MonSTer ignored: conflicts with ET4000 or Falcon memory mapping\n");
+    cfg->monster = false;
   }
   /*
   goto load_successful;

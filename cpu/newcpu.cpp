@@ -4726,6 +4726,8 @@ void REGPARAM2 Exception_cpu(int nr)
  * cpu_halt, cannot. Fault-class entries (vec 2/3/4/11) additionally
  * carry 10 code bytes host-read at pc and the full register file, so
  * patient zero of a cascade can be disassembled from the dump alone. */
+extern "C" int pistorm_monster_pending;
+extern "C" void pistorm_monster_apply_pending(void);
 extern "C" int pistorm_pc_executable(unsigned int pc);
 struct pistorm_exc_ring_e {
 	uae_u16 vec, sr;
@@ -9197,6 +9199,8 @@ static void m68k_run_jit(void)
 						 * already calls flush_icache(3). Before
 						 * do_specialties(), which can return out of the
 						 * function. One predictable load when idle. */
+						if (pistorm_monster_pending)
+							pistorm_monster_apply_pending();
 						if (psctrl_pending_armed)
 							psctrl_apply_pending();
 						if (do_specialties(0))

@@ -270,6 +270,7 @@ static const struct { const char *key; int tab; int kind; const char *tick; } ca
     { "stram_size",     SE_TAB_MACHINE, SE_K_LIST,   "1M"      },
     { "falcon_stram",   SE_TAB_MACHINE, SE_K_LIST,   "14M"     },
     { "ttram",          SE_TAB_MACHINE, SE_K_LIST,   "128M"    },
+    { "monster",        SE_TAB_MACHINE, SE_K_SWITCH, "disabled" },
     { "blitter",        SE_TAB_MACHINE, SE_K_LIST,   "enabled" },
     { "jit_power",      SE_TAB_MACHINE, SE_K_LIST,   "3"       },
     { "jit_cache",      SE_TAB_MACHINE, SE_K_LIST,   "16384"   },

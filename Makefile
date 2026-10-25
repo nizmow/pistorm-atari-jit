@@ -32,6 +32,7 @@ CFILES = config_file/config_file.c \
          gpio/bus_lock.c \
          platforms/atari/IDE.c \
          platforms/atari/machine_cookie.c \
+         platforms/atari/monster.c \
          platforms/atari/idedriver.c \
          platforms/atari/fdd/atari_fdd.c \
          platforms/atari/fdd/acsi.c \
@@ -393,14 +394,24 @@ $(AV_STAMP): FORCE
 	   echo '$(AV_PREFIX) | $(AV_RPATH_SHOW)' > $@; \
 	   echo "NOTE: FFmpeg choice changed - the emulator will be relinked"; }
 
+EMULATOR_LIBS = -lpthread -lm -ldl -l:libdrm.a $(SLIRP_LIBS) -lz $(SDL3_LIBS) -lmpg123 -ljpeg $(PDF_LIBS) $(AV_LIBS)
+
 $(TARGET): $(COBJS) $(CPPOBJS) $(AV_STAMP)
-	$(CXX) -o $@ $(COBJS) $(CPPOBJS) $(CXXFLAGS) -lpthread -lm -ldl -l:libdrm.a $(SLIRP_LIBS) -lz $(SDL3_LIBS) -lmpg123 -ljpeg $(PDF_LIBS) $(AV_LIBS)
+	$(CXX) -o $@ $(COBJS) $(CPPOBJS) $(CXXFLAGS) $(EMULATOR_LIBS)
 	@ldd $@ 2>/dev/null | grep -qE '/usr/lib.*libavcodec' && { \
 	   echo; \
 	   echo "WARNING: this build resolves libavcodec from /usr/lib - the DISTRO"; \
 	   echo "         FFmpeg. H.265 will decode in software (~3 fps for 4K)."; \
 	   echo "         Check with: make ffmpeg-status"; \
 	   echo; } || true
+
+# Hardware-free bank integration check. Cross builds must set OBJCOPY too.
+OBJCOPY ?= objcopy
+monster-bank-test: $(COBJS) $(filter-out emulator.o,$(CPPOBJS)) tests/monster/emulator.o tests/monster/test_banks.o
+	$(CXX) -o $@ $^ $(CXXFLAGS) $(EMULATOR_LIBS)
+
+tests/monster/emulator.o: emulator.o
+	$(OBJCOPY) --redefine-sym main=pistorm_emulator_main $< $@
 
 # emulator.c built as C++
 emulator.o: emulator.c
@@ -471,7 +482,7 @@ gpio/ps_protocol.o: CFLAGS += -fno-schedule-insns2
 	$(CXX) $(CXXFLAGS) -MMD -MP -c -o $@ $<
 
 clean:
-	rm -f $(DELETEFILES)
+	rm -f $(DELETEFILES) monster-bank-test tests/monster/*.o tests/monster/*.d
 
 # Fetch (or, failing that, build) the V4L2-Request FFmpeg into ./ffmpeg, which
 # is what gives the Pi 4 hardware HEVC. Deliberately NOT a dependency of `all`:

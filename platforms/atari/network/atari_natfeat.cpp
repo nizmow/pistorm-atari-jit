@@ -2,6 +2,7 @@
 
 #include "sysconfig.h"
 #include "sysdeps.h"
+#include "platforms/atari/monster.h"
 
 #include "platforms/atari/network/atari_natfeat.h"
 #include "platforms/atari/network/pistorm_net.h"
@@ -428,6 +429,11 @@ static bool nf_host_ram_ptr(uaecptr addr, uint32_t size, uae_u8 **ptr)
     }
   }
 
+  if (monster_ram_contains(addr, size)) {
+    *ptr = natmem_offset + addr;
+    return true;
+  }
+
   if (tt_ram_available &&
       addr >= NF_TT_RAM_BASE &&
       addr - NF_TT_RAM_BASE <= tt_ram_size &&
@@ -473,6 +479,11 @@ static void nf_write_byte(uaecptr addr, uae_u8 value)
     pistorm_dma_to_stram(addr, &value, 1);
     return;
   }
+  /* MonSTer uses software SMC invalidation, unlike protected TT-RAM. */
+  if (monster_ram_contains(addr, 1)) {
+    put_byte(addr, value);
+    return;
+  }
   if (nf_host_ram_ptr(addr, 1, &p)) {
     p[0] = value;
     return;
@@ -489,6 +500,11 @@ static void nf_write_word(uaecptr addr, uae_u16 value)
   };
   if (addr < NF_ST_RAM_SIZE && sizeof(bytes) <= NF_ST_RAM_SIZE - addr) {
     pistorm_dma_to_stram(addr, bytes, sizeof(bytes));
+    return;
+  }
+  /* MonSTer uses software SMC invalidation, unlike protected TT-RAM. */
+  if (monster_ram_contains(addr, 2)) {
+    put_word(addr, value);
     return;
   }
   if (nf_host_ram_ptr(addr, sizeof(bytes), &p)) {
@@ -510,6 +526,11 @@ static void nf_write_long(uaecptr addr, uae_u32 value)
   };
   if (addr < NF_ST_RAM_SIZE && sizeof(bytes) <= NF_ST_RAM_SIZE - addr) {
     pistorm_dma_to_stram(addr, bytes, sizeof(bytes));
+    return;
+  }
+  /* MonSTer uses software SMC invalidation, unlike protected TT-RAM. */
+  if (monster_ram_contains(addr, 4)) {
+    put_long(addr, value);
     return;
   }
   if (nf_host_ram_ptr(addr, sizeof(bytes), &p)) {
